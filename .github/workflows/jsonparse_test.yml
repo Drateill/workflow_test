@@ -1,0 +1,52 @@
+name: Process JSON Input
+on:
+  workflow_dispatch:
+    inputs:
+      json_content:
+        description: 'JSON content as a string'
+        required: true
+
+jobs:
+  process_json:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install jq
+        run: |
+          # Install jq using apt package manager on Ubuntu
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Process JSON with jq
+        run: |
+          # Escape dollar signs in the JSON content
+          escaped_json=$(echo ${{ inputs.json_content }}| sed 's/\$/\\$/g')
+
+          # Parse the processed JSON content using jq
+          parsed_json=$(echo "$escaped_json" | jq '.')
+
+          # Now you have the parsed JSON data available in the 'parsed_json' variable
+          echo "Parsed JSON: '$parsed_json'"
+          # Save the parsed_json as an output
+          echo "$parsed_json" > parsed_json.json
+
+      - name: Upload Parsed JSON Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: parsed-json-artifact
+          path: parsed_json.json
+
+  display_first_object:
+    needs: process_json
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Parsed JSON Artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: parsed-json-artifact
+          path: json
+
+      - name: Display the first object from the parsed JSON
+        run: |
+          parsed_json=$(cat json/parsed_json.json)
+          first_object=$(echo "$parsed_json" | jq '.[0]')
+          echo "First Object of the Parsed JSON: '$first_object'"
