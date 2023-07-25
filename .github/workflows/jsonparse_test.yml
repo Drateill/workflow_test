@@ -1,11 +1,13 @@
 name: Process JSON Input
 on:
   workflow_dispatch:
+
+  workflow_call:
     inputs:
       json_content:
         description: 'JSON content as a string'
         required: true
-
+        type: string
 jobs:
   process_json:
     runs-on: ubuntu-latest
@@ -34,19 +36,3 @@ jobs:
         with:
           name: parsed-json-artifact
           path: parsed_json.json
-
-  display_first_object:
-    needs: process_json
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Parsed JSON Artifact
-        uses: actions/download-artifact@v2
-        with:
-          name: parsed-json-artifact
-          path: json
-
-      - name: Display the first object from the parsed JSON
-        run: |
-          parsed_json=$(cat json/parsed_json.json)
-          first_object=$(echo "$parsed_json" | jq '.[0]')
-          echo "First Object of the Parsed JSON: '$first_object'"

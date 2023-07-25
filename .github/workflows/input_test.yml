@@ -1,7 +1,11 @@
-name: Terraform Apply
+name: Your Workflow Name
+
 on:
   workflow_dispatch:
     inputs:
+      vault_address:
+        description: HashiCorp Vault Address
+        required: true
       arm_client_id:
         description: ARM Client ID
         required: true
@@ -28,36 +32,44 @@ on:
         required: true
 
 jobs:
-  terraform:
+  your_job_name:
     runs-on: ubuntu-latest
     steps:
-    - name: Set up Terraform
-      uses: hashicorp/setup-terraform@v1
-      with:
-        tf_version: "1.0.0"
+      - name: Authenticate with HashiCorp Vault
+        run: |
+          # Authenticate with HashiCorp Vault using GitHub authentication
+          curl --request POST --data '{"token": "${{ secrets.GITHUB_TOKEN }}"}' ${{ inputs.vault_address }}/v1/auth/github/login -o token_response.json
+          VAULT_TOKEN=$(cat token_response.json | jq -r '.auth.client_token')
+          echo "::set-env name=VAULT_TOKEN::$VAULT_TOKEN"
 
-    - name: Terraform Init
-      id: init
-      run: |
-        echo "resource_group_name=${{ inputs.resource_group_name }}" > backend.config
-        echo "storage_account_name=${{ inputs.storage_account_name }}" >> backend.config
-        echo "container_name=${{ inputs.container_name }}" >> backend.config
-        echo "key=${{ inputs.key }}" >> backend.config
+      - name: Retrieve ARM credentials from HashiCorp Vault
+        id: arm_secrets
+        env:
+          VAULT_ADDR: ${{ inputs.vault_address }}
+        run: |
+          # Use the VAULT_TOKEN environment variable to access Vault
+          ARM_CLIENT_ID=$(curl --header "X-Vault-Token: $VAULT_TOKEN" $VAULT_ADDR/v1/${{ inputs.arm_client_id }} | jq -r '.data.value')
+          ARM_CLIENT_SECRET=$(curl --header "X-Vault-Token: $VAULT_TOKEN" $VAULT_ADDR/v1/${{ inputs.arm_client_secret }} | jq -r '.data.value')
+          ARM_SUBSCRIPTION_ID=$(curl --header "X-Vault-Token: $VAULT_TOKEN" $VAULT_ADDR/v1/${{ inputs.arm_subscription_id }} | jq -r '.data.value')
+          ARM_TENANT_ID=$(curl --header "X-Vault-Token: $VAULT_TOKEN" $VAULT_ADDR/v1/${{ inputs.arm_tenant_id }} | jq -r '.data.value')
+          echo "::set-output name=arm_client_id::$ARM_CLIENT_ID"
+          echo "::set-output name=arm_client_secret::$ARM_CLIENT_SECRET"
+          echo "::set-output name=arm_subscription_id::$ARM_SUBSCRIPTION_ID"
+          echo "::set-output name=arm_tenant_id::$ARM_TENANT_ID"
 
-        terraform init -input=false -no-color -backend-config="backend.config"
-      continue-on-error: true
+      - name: Use ARM credentials in your workflow
+        env:
+          VAULT_ADDR: ${{ inputs.vault_address }}
+          ARM_CLIENT_ID: ${{ steps.arm_secrets.outputs.arm_client_id }}
+          ARM_CLIENT_SECRET: ${{ steps.arm_secrets.outputs.arm_client_secret }}
+          ARM_SUBSCRIPTION_ID: ${{ steps.arm_secrets.outputs.arm_subscription_id }}
+          ARM_TENANT_ID: ${{ steps.arm_secrets.outputs.arm_tenant_id }}
+          RESOURCE_GROUP_NAME: ${{ inputs.resource_group_name }}
+          STORAGE_ACCOUNT_NAME: ${{ inputs.storage_account_name }}
+          CONTAINER_NAME: ${{ inputs.container_name }}
+          KEY: ${{ inputs.key }}
+        run: |
+          # Now you can use the ARM credentials and other inputs securely in this step
+          # For example, you can use them with the Azure CLI or Azure PowerShell
 
-    - name: Plan
-      run: |
-        terraform plan -out=tfplan -input=false -no-color
-      continue-on-error: true
-
-    - name: Apply
-      if: ${{ steps.apply.outcome == 'success' }}
-      run: terraform apply tfplan -input=false -no-color
-      continue-on-error: true
-
-    - name: Clean up
-      run: |
-        rm -f backend.config tfplan
-      continue-on-error: true
+      # Add additional steps as needed

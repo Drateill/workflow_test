@@ -1,0 +1,37 @@
+name: Main Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+        json_content:
+          description: 'JSON content as a string'
+          required: true
+
+jobs:
+  process_json_job:
+    # Use the reusable template here
+    uses: ./.github/workflows/jsonparse_test.yml
+    with: 
+        json_content: ${{inputs.json_content}}
+
+  display_names:
+    needs: process_json_job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Parsed JSON Artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: parsed-json-artifact
+          path: json
+
+      - name: Display Names
+        run: |
+          # Read the contents of the parsed_json.json file
+          parsed_json=$(cat json/parsed_json.json)
+
+          # Use jq to extract the names from the JSON
+          names=$(echo "$parsed_json" | jq '.[] | .name')
+
+          # Print the names
+          echo "Names:"
+          echo "$names"
